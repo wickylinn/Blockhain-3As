@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal dApp - ERC20 Token Reader</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .info-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 12px;
+            word-wrap: break-word;
+        }
+
+        .label {
+            font-weight: 600;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .error {
+            background: #fee;
+            border-left-color: #f44;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #efe;
+            border-left-color: #4a4;
+            color: #363;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .network-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #667eea;
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            margin-top: 8px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .contract-section {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Minimal dApp Frontend</h1>
+        <p class="subtitle">Connect to MetaMask and read ERC20 token data</p>
+
+        <!-- Connection Section -->
+        <div class="section">
+            <div class="section-title">1. Wallet Connection</div>
+            <button id="connectBtn" onclick="connectWallet()">
+                Connect MetaMask
+            </button>
+            <div id="connectionStatus"></div>
+        </div>
+
+        <!-- Account Information -->
+        <div class="section" id="accountSection" style="display: none;">
+            <div class="section-title">2. Account Information</div>
+            <div class="info-box">
+                <span class="label">Connected Address</span>
+                <div class="value" id="accountAddress">-</div>
+            </div>
+            <div class="info-box">
+                <span class="label">Network</span>
+                <div class="value" id="networkInfo">-</div>
+            </div>
+            <div class="info-box">
+                <span class="label">ETH Balance</span>
+                <div class="value" id="ethBalance">-</div>
+            </div>
+        </div>
+
+        <!-- Contract Interaction -->
+        <div class="section contract-section" id="contractSection" style="display: none;">
+            <div class="section-title">3. Read Contract Data</div>
+            <div>
+                <span class="label">Contract Address (ERC20 Token)</span>
+                <input 
+                    type="text" 
+                    id="contractAddress" 
+                    placeholder="0x..."
+                    value="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                />
+                <small style="display: block; margin-top: 5px; color: #666;">
+                    Default: USDC on Ethereum Mainnet
+                </small>
+            </div>
+            
+            <button onclick="readContractData()" style="margin-top: 15px;">
+                Read Token Information
+            </button>
+            
+            <div id="contractData"></div>
+        </div>
+
+        <div id="errorMessage"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let provider = null;
+        let signer = null;
+        let userAddress = null;
+
+        // Standard ERC20 ABI - only the functions we need
+        const ERC20_ABI = [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)",
+            "function totalSupply() view returns (uint256)",
+            "function balanceOf(address owner) view returns (uint256)"
+        ];
+
+        /**
+         * Connect to MetaMask wallet
+         * Implements comprehensive error handling for various connection scenarios
+         */
+        async function connectWallet() {
+            const connectBtn = document.getElementById('connectBtn');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Clear previous errors
+            errorMessage.innerHTML = '';
+            connectionStatus.innerHTML = '';
+
+            try {
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask is not installed. Please install MetaMask extension.');
+                }
+
+                // Show loading state
+                connectBtn.disabled = true;
+                connectBtn.innerHTML = 'Connecting<span class="loading"></span>';
+
+                // Request account access
+                // This triggers MetaMask popup for user approval
+                const accounts = await window.ethereum.request({ 
+                    method: 'eth_requestAccounts' 
+                });
+
+                if (!accounts || accounts.length === 0) {
+                    throw new Error('No accounts found. Please unlock MetaMask.');
+                }
+
+                // Initialize Ethers.js provider with MetaMask
+                // BrowserProvider is the v6 equivalent of Web3Provider
+                provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // Get signer (account that can sign transactions)
+                signer = await provider.getSigner();
+                userAddress = await signer.getAddress();
+
+                // Get network information
+                const network = await provider.getNetwork();
+                
+                // Get ETH balance
+                const balance = await provider.getBalance(userAddress);
+                const ethBalance = ethers.formatEther(balance);
+
+                // Update UI with success state
+                connectBtn.innerHTML = '✓ Connected';
+                connectBtn.style.background = '#4caf50';
+                
+                connectionStatus.innerHTML = `
+                    <div class="success">
+                        Successfully connected to MetaMask!
+                    </div>
+                `;
+
+                // Show account and contract sections
+                document.getElementById('accountSection').style.display = 'block';
+                document.getElementById('contractSection').style.display = 'block';
+
+                // Populate account information
+                document.getElementById('accountAddress').textContent = userAddress;
+                document.getElementById('networkInfo').innerHTML = 
+                    `${network.name} <span class="network-badge">Chain ID: ${network.chainId}</span>`;
+                document.getElementById('ethBalance').textContent = 
+                    `${parseFloat(ethBalance).toFixed(4)} ETH`;
+
+                // Setup event listeners for account/network changes
+                setupEventListeners();
+
+            } catch (error) {
+                // Comprehensive error handling
+                console.error('Connection error:', error);
+                
+                let errorMsg = 'Failed to connect to MetaMask. ';
+                
+                if (error.code === 4001) {
+                    // User rejected the connection request
+                    errorMsg += 'You rejected the connection request.';
+                } else if (error.code === -32002) {
+                    // Request already pending
+                    errorMsg += 'Connection request already pending. Please check MetaMask.';
+                } else {
+                    errorMsg += error.message;
+                }
+
+                errorMessage.innerHTML = `<div class="error">${errorMsg}</div>`;
+                
+                // Reset button state
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = 'Connect MetaMask';
+            }
+        }
+
+        /**
+         * Setup event listeners for wallet state changes
+         * Handles account switching and network changes
+         */
+        function setupEventListeners() {
+            // Handle account changes
+            window.ethereum.on('accountsChanged', async (accounts) => {
+                if (accounts.length === 0) {
+                    // User disconnected all accounts
+                    location.reload();
+                } else {
+                    // Account switched - reload page for simplicity
+                    // Production apps should update state without reload
+                    location.reload();
+                }
+            });
+
+            // Handle network changes
+            window.ethereum.on('chainChanged', () => {
+                // Reload page on network change
+                // This is the recommended approach from MetaMask
+                location.reload();
+            });
+        }
+
+        /**
+         * Read data from ERC20 contract
+         * Demonstrates contract instantiation and multiple view function calls
+         */
+        async function readContractData() {
+            const contractAddress = document.getElementById('contractAddress').value.trim();
+            const contractData = document.getElementById('contractData');
+            const errorMessage = document.getElementById('errorMessage');
+
+            // Clear previous results
+            contractData.innerHTML = '';
+            errorMessage.innerHTML = '';
+
+            try {
+                // Validate contract address format
+                if (!contractAddress || !ethers.isAddress(contractAddress)) {
+                    throw new Error('Invalid contract address. Please enter a valid Ethereum address.');
+                }
+
+                // Show loading state
+                contractData.innerHTML = `
+                    <div class="info-box" style="text-align: center; margin-top: 15px;">
+                        <span class="loading"></span> Loading contract data...
+                    </div>
+                `;
+
+                // Create contract instance
+                // This connects the contract ABI with the deployed contract address
+                const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
+
+                // Read contract data with parallel execution
+                // Promise.all executes all calls concurrently for better performance
+                const [name, symbol, decimals, totalSupply, userBalance] = await Promise.all([
+                    contract.name().catch(e => 'Unable to read'),
+                    contract.symbol().catch(e => 'Unable to read'),
+                    contract.decimals().catch(e => 0),
+                    contract.totalSupply().catch(e => BigInt(0)),
+                    contract.balanceOf(userAddress).catch(e => BigInt(0))
+                ]);
+
+                // Format large numbers for display
+                const formattedSupply = ethers.formatUnits(totalSupply, decimals);
+                const formattedBalance = ethers.formatUnits(userBalance, decimals);
+
+                // Display results
+                contractData.innerHTML = `
+                    <div class="success" style="margin-top: 15px; margin-bottom: 15px;">
+                        ✓ Contract data loaded successfully
+                    </div>
+                    <div class="info-box">
+                        <span class="label">Token Name</span>
+                        <div class="value">${name}</div>
+                    </div>
+                    <div class="info-box">
+                        <span class="label">Token Symbol</span>
+                        <div class="value">${symbol}</div>
+                    </div>
+                    <div class="info-box">
+                        <span class="label">Decimals</span>
+                        <div class="value">${decimals}</div>
+                    </div>
+                    <div class="info-box">
+                        <span class="label">Total Supply</span>
+                        <div class="value">${parseFloat(formattedSupply).toLocaleString()} ${symbol}</div>
+                    </div>
+                    <div class="info-box">
+                        <span class="label">Your Balance</span>
+                        <div class="value">${parseFloat(formattedBalance).toLocaleString()} ${symbol}</div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Contract reading error:', error);
+                
+                let errorMsg = 'Failed to read contract data. ';
+                
+                // Provide specific error messages for common issues
+                if (error.code === 'CALL_EXCEPTION') {
+                    errorMsg += 'This address may not be a valid ERC20 token contract.';
+                } else if (error.code === 'NETWORK_ERROR') {
+                    errorMsg += 'Network connection issue. Please check your connection.';
+                } else if (error.message.includes('Invalid contract address')) {
+                    errorMsg = error.message;
+                } else {
+                    errorMsg += error.message;
+                }
+
+                errorMessage.innerHTML = `<div class="error">${errorMsg}</div>`;
+                contractData.innerHTML = '';
+            }
+        }
+
+        // Auto-connect if previously connected (optional enhancement)
+        window.addEventListener('load', async () => {
+            if (typeof window.ethereum !== 'undefined') {
+                // Check if already connected
+                const accounts = await window.ethereum.request({ 
+                    method: 'eth_accounts' 
+                });
+                
+                if (accounts && accounts.length > 0) {
+                    // User was previously connected, auto-connect
+                    // Uncomment the line below to enable auto-connect
+                    // connectWallet();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
